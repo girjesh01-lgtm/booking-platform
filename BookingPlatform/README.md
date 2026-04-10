@@ -2,29 +2,44 @@
 
 ## 🚀 Overview
 
-This project is a simplified **Movie Ticket Booking Platform** designed to demonstrate strong system design, concurrency handling, and backend architecture using **Spring Boot + MySQL (Docker)**.
+This project is a simplified **Movie Ticket Booking Platform** designed to demonstrate:
 
-The system allows users to:
+* Solution thinking
+* System design and architecture
+* Concurrency handling
+* Clean coding practices
 
-* View available seats for a show
-* Lock seats temporarily
-* Confirm booking after payment
+The system supports:
+
+* Viewing available seats
+* Locking seats
+* Confirming bookings
 
 ---
 
-## 🧠 Design Goals
+## 🧠 Scope & Approach
 
-* Prevent **double booking**
-* Ensure **data consistency** under concurrent requests
-* Maintain a clean **layered architecture**
-* Demonstrate **real-world booking flow**
+This assignment focuses on **core booking flow and concurrency handling**.
+
+### ✅ Implemented
+
+* Seat availability check
+* Seat locking (write-heavy scenario)
+* Booking lifecycle (LOCKED → CONFIRMED)
+* Pessimistic locking for concurrency
+
+### ❌ Skipped (Intentionally)
+
+* Full UI
+* Distributed systems (kept monolithic for simplicity)
+* Real payment gateway (mocked)
 
 ---
 
 ## 🏗️ High-Level Architecture
 
 ```
-Client (Postman / UI)
+Client (Postman)
         ↓
 Controller Layer
         ↓
@@ -35,19 +50,34 @@ Repository Layer (JPA)
 MySQL (Docker)
 ```
 
----
+### Design Pattern Used
 
-## ⚙️ Tech Stack
-
-* Java 17+
-* Spring Boot
-* Spring Data JPA
-* MySQL (Dockerized)
-* Lombok
+* Layered Architecture
+* Repository Pattern
+* DTO Pattern
 
 ---
 
-## 🗄️ Database Design
+## 🔁 Booking Flow (Write Scenario)
+
+```
+1. User selects seats
+2. Seats are locked (DB transaction)
+3. Booking created (LOCKED state)
+4. Payment simulated
+5. Booking CONFIRMED / FAILED
+```
+
+---
+
+## 📖 Read Scenario
+
+* Fetch available seats for a show
+* Filter by `AVAILABLE` status
+
+---
+
+## 🗄️ Data Model
 
 ### Seat
 
@@ -66,36 +96,13 @@ MySQL (Docker)
 
 ---
 
-## 🔁 Booking Lifecycle
-
-```
-AVAILABLE → LOCKED → CONFIRMED
-                 ↘ FAILED → AVAILABLE
-```
-
----
-
-## 🔐 Concurrency Handling
-
-To prevent double booking, **pessimistic locking** is used:
-
-* `SELECT ... FOR UPDATE` via JPA
-* Ensures only one transaction can modify seats at a time
-
-### Why this approach?
-
-* Guarantees **strong consistency**
-* Prevents race conditions during booking
-
----
-
-## 🔌 API Endpoints
+## 🔌 API Contracts
 
 ### 1. Lock Seats
 
 `POST /bookings/lock`
 
-**Request:**
+Request:
 
 ```json
 {
@@ -105,7 +112,7 @@ To prevent double booking, **pessimistic locking** is used:
 }
 ```
 
-**Response:**
+Response:
 
 ```json
 {
@@ -120,7 +127,7 @@ To prevent double booking, **pessimistic locking** is used:
 
 `POST /bookings/{bookingId}/confirm`
 
-**Response:**
+Response:
 
 ```
 Booking Confirmed!
@@ -128,85 +135,52 @@ Booking Confirmed!
 
 ---
 
-## 🐳 Running MySQL via Docker
+## 🔐 Concurrency Handling (Key Focus)
 
-### docker-compose.yml
+Used **Pessimistic Locking**:
 
-```yaml
-version: '3.8'
+* `SELECT ... FOR UPDATE`
+* Ensures only one transaction can access seats
 
-services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql-booking
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: booking_db
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: app_pass
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
+### Trade-off:
 
-volumes:
-  mysql_data:
-```
-
-### Run:
-
-```
-docker-compose up -d
-```
+* ✅ Strong consistency
+* ❌ Reduced throughput under high contention
 
 ---
 
-## ⚙️ Application Configuration
+## ⚖️ Design Decisions & Trade-offs
 
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/booking_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-spring.datasource.username=app_user
-spring.datasource.password=app_pass
+### 1. Pessimistic Locking
 
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-```
+* Chosen for correctness over performance
 
----
+### 2. Separate Lock & Confirm APIs
 
-## ⚖️ Design Decisions
+* Helps handle payment failures cleanly
 
-### 1. Separate Lock & Confirm Flow
+### 3. Monolithic Design
 
-* Allows handling payment failures
-* Improves user experience
-
-### 2. Pessimistic Locking
-
-* Chosen over optimistic locking for strict consistency
-
-### 3. Monolithic Architecture
-
-* Simpler for assignment scope
-* Easier to explain in interview
+* Easier to implement and explain
+* Suitable for assignment scope
 
 ---
 
 ## ⚠️ Assumptions
 
 * Single region deployment
-* No real payment gateway (simulated)
-* No authentication/authorization
+* Low latency DB access
+* No authentication layer
+* Payment is mocked
 
 ---
 
-## 📈 Non-Functional Considerations
+## 📈 Non-Functional Requirements
 
 ### Scalability
 
-* Can add **Redis caching** for seat availability
-* Use **read replicas** for heavy read traffic
+* Add Redis caching for seat reads
+* Read replicas for scaling reads
 
 ### Availability
 
@@ -214,29 +188,49 @@ spring.jpa.show-sql=true
 
 ### Security
 
-* JWT-based authentication (future scope)
+* JWT-based authentication (future)
 
 ### Payment Integration
 
-* External service (Razorpay/Stripe)
+* External service (Stripe/Razorpay)
+* Webhooks for async confirmation
+
+---
+
+## 🐳 Running MySQL (Docker)
+
+```bash
+docker-compose up -d
+```
+
+---
+
+## ⚙️ Application Config
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/booking_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+spring.datasource.username=app_user
+spring.datasource.password=app_pass
+```
 
 ---
 
 ## 🔮 Future Improvements
 
-* Seat lock expiry (auto release after timeout)
-* Booking-Seat mapping table
-* Distributed locking using Redis
-* Microservices architecture
+* Seat lock expiry (timeout handling)
+* Booking-seat mapping table
+* Redis-based distributed locking
+* Event-driven architecture (Kafka)
 
 ---
 
 ## 🧠 Interview Talking Points
 
-* Used **transactional boundaries** to ensure atomic operations
-* Prevented race conditions using **pessimistic locking**
-* Designed system with **real-world booking lifecycle**
-* Considered scalability and production improvements
+* Designed system to prevent double booking
+* Used transactional boundaries for atomicity
+* Handled concurrency using DB-level locking
+* Clearly separated read vs write flows
+* Considered production-scale improvements
 
 ---
 
@@ -250,4 +244,10 @@ spring.jpa.show-sql=true
 
 ## ✅ Conclusion
 
-This project focuses on **correctness, concurrency handling, and system design clarity**, which are critical aspects of real-world booking systems.
+This project demonstrates strong fundamentals in:
+
+* System design
+* Backend architecture
+* Concurrency handling
+
+while keeping the implementation clean and focused.
